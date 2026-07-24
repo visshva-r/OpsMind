@@ -1,0 +1,9 @@
+P-101 Supplementary Maintenance Note — Uploaded Field Record
+Equipment: P-101
+Regulatory reference: OISD-GDN-118
+
+Observation (Jan 2026): Operator reported intermittent seal weeping during night shift.
+Action taken: Increased seal flush flow temporarily and opened work order WO-24501.
+Recommendation: Replace mechanical seal within 48 hours if leakage exceeds 5 drops/minute per SOP.
+Vibration reading at time of inspection: 7.8 mm/s RMS (limit 7.1 mm/s).
+Follow-up: Schedule laser alignment check after seal replacement.

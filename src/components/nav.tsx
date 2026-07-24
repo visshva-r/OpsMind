@@ -9,6 +9,7 @@ import {
   Brain,
   GitBranch,
   FileSearch,
+  Network,
   ShieldCheck,
 } from "lucide-react";
 
@@ -18,6 +19,7 @@ const navItems = [
   { href: "/agents/rca", label: "Maintenance RCA", icon: Brain },
   { href: "/agents/compliance", label: "Compliance Agent", icon: ShieldCheck },
   { href: "/documents", label: "Documents", icon: BookOpen },
+  { href: "/graph", label: "Knowledge Graph", icon: Network },
   { href: "/architecture", label: "Architecture", icon: GitBranch },
 ];
 

@@ -1,36 +1,37 @@
+import Link from "next/link";
 import { PageHeader } from "@/components/ui";
 
 const layers = [
   {
     title: "Document Ingestion Layer",
     items: [
-      "SOPs, Work Orders, Inspection Reports",
-      "OEM Manuals, P&ID Excerpts, Regulatory Docs",
-      "OCR-ready pipeline (PDF, scanned forms, spreadsheets)",
+      "Seeded SOPs, work orders, inspection reports, manuals",
+      "Live upload for .txt / .md with entity tag extraction",
+      "Equipment tags + regulatory refs parsed on ingest",
     ],
   },
   {
     title: "Knowledge Processing Layer",
     items: [
-      "Chunking + entity tagging (equipment, regulations)",
-      "Local vector retrieval (RAG) under 120ms",
-      "Knowledge graph links (equipment → failure → rule)",
+      "Word-chunking with overlap (320 / 60 tokens)",
+      "Keyword-scored local RAG retrieval with citations",
+      "Knowledge graph built from equipment, docs, regulations, failure modes",
     ],
   },
   {
     title: "Intelligence Layer",
     items: [
-      "Expert Knowledge Copilot (Q&A + citations)",
-      "Maintenance RCA Agent (root cause + actions)",
-      "Compliance Intelligence Agent (audit gaps)",
+      "Expert Knowledge Copilot (Q&A + citations + optional Gemini)",
+      "Maintenance RCA Agent (root cause + prioritized actions)",
+      "Compliance Intelligence Agent (audit gaps + action queue)",
     ],
   },
   {
     title: "Output Layer",
     items: [
-      "Prioritized corrective action queues",
       "Source-cited answers with confidence scores",
-      "Audit-ready compliance evidence mapping",
+      "Click-through citations to originating documents",
+      "Graph view + exportable RCA / compliance action reports",
     ],
   },
 ];
@@ -40,22 +41,22 @@ export default function ArchitecturePage() {
     <div>
       <PageHeader
         title="System Architecture"
-        description="OpsMind architecture for PS-8: unified industrial knowledge ingestion, retrieval, and agentic intelligence."
-        badge="Submission-ready diagram"
+        description="OpsMind architecture for PS-8: unified industrial knowledge ingestion, retrieval, knowledge graph linking, and agentic intelligence."
+        badge="Honest implementation map"
       />
 
       <div className="mb-8 rounded-xl border border-slate-800 bg-slate-900/60 p-6">
         <div className="flex flex-col items-center gap-3 text-center text-sm">
           {[
-            "Heterogeneous Plant Documents",
+            "Heterogeneous Plant Documents + Uploads",
             "↓",
-            "Ingestion · Chunking · Tagging",
+            "Ingestion · Chunking · Entity Tagging",
             "↓",
             "Local RAG Retrieval + Knowledge Graph",
             "↓",
             "Copilot · RCA Agent · Compliance Agent",
             "↓",
-            "Cited Answers · Action Queues · Audit Gaps",
+            "Cited Answers · Graph Links · Action Queues",
           ].map((line, index) => (
             <div
               key={`flow-${index}`}
@@ -97,7 +98,8 @@ export default function ArchitecturePage() {
             "Next.js 15",
             "React 19",
             "Tailwind CSS",
-            "Local RAG",
+            "Local keyword RAG",
+            "Knowledge graph (metadata-derived)",
             "Gemini API (optional)",
             "TypeScript",
           ].map((tech) => (
@@ -109,6 +111,17 @@ export default function ArchitecturePage() {
             </span>
           ))}
         </div>
+        <p className="mt-4 text-sm text-slate-400">
+          Submission snapshot: Git tag{" "}
+          <code className="rounded bg-slate-950 px-1.5 py-0.5 text-cyan-300">
+            v1.0-submission
+          </code>
+          . Post-deadline commits add upload pipeline, knowledge graph view, citation
+          deep-links, and computed dashboard metrics.{" "}
+          <Link href="/graph" className="text-cyan-400 hover:text-cyan-300">
+            View knowledge graph →
+          </Link>
+        </p>
       </section>
     </div>
   );

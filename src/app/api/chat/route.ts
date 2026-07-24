@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { answerWithRag } from "@/lib/agents";
+import { answerWithRag, recordQueryTime } from "@/lib/agents";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -12,6 +12,7 @@ export async function POST(request: Request) {
   const start = Date.now();
   const result = await answerWithRag(query);
   const elapsedMs = Date.now() - start;
+  recordQueryTime(elapsedMs);
 
   return NextResponse.json({ ...result, elapsedMs });
 }

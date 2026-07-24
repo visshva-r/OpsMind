@@ -27,8 +27,15 @@ export default function CopilotClient() {
   ]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
+  const [docCount, setDocCount] = useState(12);
   const bottomRef = useRef<HTMLDivElement>(null);
   const bootstrapped = useRef(false);
+
+  useEffect(() => {
+    fetch("/api/documents")
+      .then((response) => response.json())
+      .then((data) => setDocCount(data.stats?.documentsIndexed ?? 12));
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -94,7 +101,7 @@ export default function CopilotClient() {
       <PageHeader
         title="Expert Knowledge Copilot"
         description="RAG-powered conversational AI over SOPs, work orders, inspection reports, OEM manuals, and regulatory documents — with citations and confidence scores."
-        badge="⚡ Local RAG Engine Active · 12 Docs Indexed"
+        badge={`⚡ Local RAG Engine Active · ${docCount} Docs Indexed`}
       />
 
       <div className="mb-4 flex flex-wrap gap-2">

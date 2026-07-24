@@ -1,4 +1,6 @@
-import { retrieveRelevantChunks } from "./rag";
+import { getGraphLinksForEquipment, getGraphStats } from "./knowledge-graph";
+import { getAverageQueryTimeMs, recordQueryTime } from "./metrics";
+import { getAllDocuments, retrieveRelevantChunks } from "./rag";
 import { buildSmartExcerpt, synthesizeFromRetrieval } from "./synthesis";
 import type { AgentAction, AgentResult, Citation, KnowledgeLink } from "./types";
 
@@ -94,7 +96,15 @@ function buildKnowledgeLinks(
     });
   }
 
-  return links;
+  const graphLinks = getGraphLinksForEquipment(equipmentTag, 4);
+  for (const graphLink of graphLinks) {
+    const exists = links.some(
+      (link) => link.to === graphLink.to && link.relation === graphLink.relation
+    );
+    if (!exists) links.push(graphLink);
+  }
+
+  return links.slice(0, 6);
 }
 
 async function maybeCallGemini(
@@ -384,10 +394,15 @@ export async function runComplianceCheck(input: {
 }
 
 export function getDashboardStats() {
+  const graphStats = getGraphStats();
+
   return {
-    documentsIndexed: 12,
-    equipmentNodes: 18,
-    complianceRules: 9,
-    avgQueryTimeMs: 120,
+    documentsIndexed: getAllDocuments().length,
+    equipmentNodes: graphStats.equipmentNodes,
+    complianceRules: graphStats.regulationNodes,
+    graphEdges: graphStats.edgeCount,
+    avgQueryTimeMs: getAverageQueryTimeMs(),
   };
 }
+
+export { recordQueryTime };

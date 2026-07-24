@@ -1,4 +1,4 @@
-import { SEED_DOCUMENTS } from "./seed-documents";
+import { getAllStoredDocuments, getStoredDocumentById } from "./document-store";
 import type { DocumentChunk, IndustrialDocument } from "./types";
 
 const CHUNK_SIZE = 320;
@@ -39,18 +39,26 @@ function chunkDocument(doc: IndustrialDocument): DocumentChunk[] {
 }
 
 let cachedChunks: DocumentChunk[] | null = null;
+let cachedDocumentCount = 0;
+
+export function invalidateChunkCache() {
+  cachedChunks = null;
+  cachedDocumentCount = 0;
+}
 
 export function getAllDocuments(): IndustrialDocument[] {
-  return SEED_DOCUMENTS;
+  return getAllStoredDocuments();
 }
 
 export function getDocumentById(id: string): IndustrialDocument | undefined {
-  return SEED_DOCUMENTS.find((doc) => doc.id === id);
+  return getStoredDocumentById(id);
 }
 
 export function getAllChunks(): DocumentChunk[] {
-  if (!cachedChunks) {
-    cachedChunks = SEED_DOCUMENTS.flatMap(chunkDocument);
+  const documents = getAllStoredDocuments();
+  if (!cachedChunks || cachedDocumentCount !== documents.length) {
+    cachedChunks = documents.flatMap(chunkDocument);
+    cachedDocumentCount = documents.length;
   }
   return cachedChunks;
 }

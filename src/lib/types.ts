@@ -72,5 +72,6 @@ export interface DashboardStats {
   documentsIndexed: number;
   equipmentNodes: number;
   complianceRules: number;
+  graphEdges: number;
   avgQueryTimeMs: number;
 }

@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export function PageHeader({
   title,
   description,
@@ -62,6 +64,7 @@ export function CitationList({
   citations,
 }: {
   citations: Array<{
+    documentId?: string;
     documentTitle: string;
     documentType: string;
     excerpt: string;
@@ -81,9 +84,18 @@ export function CitationList({
           className="rounded-lg border border-slate-800 bg-slate-950/80 p-3"
         >
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-medium text-white">
-              {citation.documentTitle}
-            </p>
+            {citation.documentId ? (
+              <Link
+                href={`/documents?id=${encodeURIComponent(citation.documentId)}&highlight=${encodeURIComponent(citation.excerpt.slice(0, 80))}`}
+                className="text-sm font-medium text-cyan-300 hover:text-cyan-200 hover:underline"
+              >
+                {citation.documentTitle}
+              </Link>
+            ) : (
+              <p className="text-sm font-medium text-white">
+                {citation.documentTitle}
+              </p>
+            )}
             <span className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-xs text-cyan-300">
               {Math.round(citation.relevanceScore * 100)}%
             </span>

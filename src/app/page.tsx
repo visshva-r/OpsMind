@@ -45,14 +45,14 @@ export default function HomePage() {
           hint="Heterogeneous industrial records unified"
         />
         <StatCard
-          label="Knowledge Graph Nodes"
+          label="Equipment Tags"
           value={stats.equipmentNodes}
-          hint="Equipment, permits, and risk relationships"
+          hint="Unique equipment entities across corpus"
         />
         <StatCard
-          label="Compliance Rules"
-          value={stats.complianceRules}
-          hint="Mapped to OISD, Factory Act, and PESO"
+          label="Knowledge Graph Edges"
+          value={stats.graphEdges}
+          hint="Equipment, document, regulation, and failure links"
         />
         <StatCard
           label="Avg Query Time"
@@ -100,6 +100,9 @@ export default function HomePage() {
           <h2 className="text-lg font-medium text-white">Indexed Document Corpus</h2>
           <Link href="/architecture" className="text-xs text-cyan-400 hover:text-cyan-300">
             View architecture →
+          </Link>
+          <Link href="/graph" className="text-xs text-cyan-400 hover:text-cyan-300">
+            Knowledge graph →
           </Link>
         </div>
         <p className="mt-2 text-sm text-slate-400">
