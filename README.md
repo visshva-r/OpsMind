@@ -3,7 +3,7 @@
 **ET AI Hackathon 2026 | Problem Statement 8**  
 *AI for Industrial Knowledge Intelligence: Unified Asset & Operations Brain*
 
-## Submission Snapshot
+## Repository Versions
 
 Round 2 was submitted on **22 July 2026**. The submission-day codebase is tagged:
 
@@ -11,13 +11,13 @@ Round 2 was submitted on **22 July 2026**. The submission-day codebase is tagged
 git checkout v1.0-submission
 ```
 
-**Post-submission enhancements** (23 July 2026+) on `main` add:
+The `main` branch includes **ongoing improvements** such as:
 
 - Real `.txt` / `.md` upload → chunk → query in Copilot
 - Metadata-derived **knowledge graph** view (`/graph`)
 - Citation deep-links to source documents
 - Computed dashboard metrics (no hardcoded stats)
-- Honest architecture documentation
+- Updated architecture documentation
 
 ## Problem We Solve
 

@@ -101,7 +101,6 @@ export default function GraphPage() {
       <PageHeader
         title="Industrial Knowledge Graph"
         description="Equipment tags, failure modes, plant documents, and regulatory references linked from ingested records — built from metadata and entity extraction."
-        badge="Post-submission enhancement"
       />
 
       <div className="mb-6 flex flex-wrap items-center gap-3">

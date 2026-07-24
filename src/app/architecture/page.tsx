@@ -112,12 +112,16 @@ export default function ArchitecturePage() {
           ))}
         </div>
         <p className="mt-4 text-sm text-slate-400">
-          Submission snapshot: Git tag{" "}
+          Submission-day snapshot: Git tag{" "}
           <code className="rounded bg-slate-950 px-1.5 py-0.5 text-cyan-300">
             v1.0-submission
           </code>
-          . Post-deadline commits add upload pipeline, knowledge graph view, citation
-          deep-links, and computed dashboard metrics.{" "}
+          . The latest{" "}
+          <code className="rounded bg-slate-950 px-1.5 py-0.5 text-cyan-300">
+            main
+          </code>{" "}
+          branch includes upload pipeline, knowledge graph view, citation deep-links,
+          and computed dashboard metrics.{" "}
           <Link href="/graph" className="text-cyan-400 hover:text-cyan-300">
             View knowledge graph →
           </Link>
