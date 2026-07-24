@@ -272,15 +272,43 @@ function buildRcaActions(
   ];
 }
 
-function buildComplianceSummary(scope: string, citations: Citation[]): string {
+function resolveComplianceBranch(
+  scope: string,
+  citations: Citation[]
+): "ac07" | "permit" | "general" {
   const lower = scope.toLowerCase();
   const blob = citationBlob(citations);
 
-  if (lower.includes("ac-07") || blob.includes("peso")) {
+  const isAc07 =
+    lower.includes("ac-07") ||
+    lower.includes("compressor") ||
+    lower.includes("peso") ||
+    blob.includes("peso") ||
+    blob.includes("compressor");
+
+  if (isAc07) return "ac07";
+
+  if (
+    lower.includes("permit") ||
+    lower.includes("confined") ||
+    blob.includes("confined space")
+  ) {
+    return "permit";
+  }
+
+  return "general";
+}
+
+function buildComplianceSummary(
+  scope: string,
+  citations: Citation[],
+  branch = resolveComplianceBranch(scope, citations)
+): string {
+  if (branch === "ac07") {
     return `Compliance review for "${scope}" highlights PESO safety valve certificate expiry on AC-07, overdue maintenance records, and missing statutory evidence under Factory Act Sec 40B.`;
   }
 
-  if (lower.includes("permit") || blob.includes("confined space")) {
+  if (branch === "permit") {
     return `Compliance review for "${scope}" flags permit revalidation gaps after process changes, gas detector calibration overdue, and incomplete near-miss corrective actions for confined space entry.`;
   }
 
@@ -289,12 +317,10 @@ function buildComplianceSummary(scope: string, citations: Citation[]): string {
 
 function buildComplianceActions(
   scope: string,
-  citations: Citation[]
+  citations: Citation[],
+  branch = resolveComplianceBranch(scope, citations)
 ): AgentAction[] {
-  const lower = scope.toLowerCase();
-  const blob = citationBlob(citations);
-
-  if (lower.includes("ac-07") || blob.includes("compressor")) {
+  if (branch === "ac07") {
     return [
       {
         priority: "critical",
@@ -382,14 +408,15 @@ export async function runComplianceCheck(input: {
   const query = `${input.scope} compliance audit factory act oisd permit inspection overdue`;
   const retrieved = retrieveRelevantChunks(query, 6);
   const citations = toCitations(retrieved, query);
+  const branch = resolveComplianceBranch(input.scope, citations);
 
   return {
     agent: "Compliance Intelligence Agent",
-    summary: buildComplianceSummary(input.scope, citations),
+    summary: buildComplianceSummary(input.scope, citations, branch),
     confidence: citations.length > 0 ? 0.88 : 0.65,
     citations,
     knowledgeLinks: buildKnowledgeLinks(citations, "Unit-2"),
-    actions: buildComplianceActions(input.scope, citations),
+    actions: buildComplianceActions(input.scope, citations, branch),
   };
 }
 

@@ -9,8 +9,17 @@ const MAX_FILE_SIZE = 200_000;
 const ALLOWED_EXTENSIONS = [".txt", ".md"];
 
 export async function POST(request: Request) {
+  let formData: FormData;
   try {
-    const formData = await request.formData();
+    formData = await request.formData();
+  } catch {
+    return NextResponse.json(
+      { error: "Multipart form data with a file field is required" },
+      { status: 400 }
+    );
+  }
+
+  try {
     const file = formData.get("file");
 
     if (!file || !(file instanceof File)) {

@@ -17,8 +17,17 @@ export function getStoredDocumentById(id: string): IndustrialDocument | undefine
 
 export function extractEquipmentTags(content: string, title: string): string[] {
   const combined = `${title} ${content}`;
+  const regulatoryRefs = extractRegulatoryRefs(content);
   const matches = combined.match(EQUIPMENT_TAG_PATTERN) ?? [];
-  return [...new Set(matches.map((tag) => tag.toUpperCase()))];
+  const tags = [...new Set(matches.map((tag) => tag.toUpperCase()))];
+
+  return tags.filter(
+    (tag) =>
+      !regulatoryRefs.some(
+        (ref) =>
+          ref.toUpperCase().includes(tag) && ref.toUpperCase() !== tag
+      )
+  );
 }
 
 export function extractRegulatoryRefs(content: string): string[] {
