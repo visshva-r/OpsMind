@@ -3,35 +3,36 @@ import { PageHeader } from "@/components/ui";
 
 const layers = [
   {
-    title: "Document Ingestion Layer",
+    title: "Document Ingestion",
     items: [
-      "Seeded SOPs, work orders, inspection reports, manuals",
-      "Live upload for .txt / .md with entity tag extraction",
-      "Equipment tags + regulatory refs parsed on ingest",
+      "Seeded industrial corpus plus live .txt / .md / .csv / .json upload",
+      "Equipment tags and regulatory refs extracted on ingest",
+      "Uploads are parsed but never stored server-side, so sessions stay isolated",
     ],
   },
   {
-    title: "Knowledge Processing Layer",
+    title: "Knowledge Processing",
     items: [
-      "Word-chunking with overlap (320 / 60 tokens)",
-      "Keyword-scored local RAG retrieval with citations",
-      "Knowledge graph built from equipment, docs, regulations, failure modes",
+      "Full-document indexing plus section chunks, scored one hit per document",
+      "Keyword / BM25-style local RAG — not vector embeddings",
+      "Metadata-derived knowledge graph (equipment → document → regulation → failure)",
     ],
   },
   {
-    title: "Intelligence Layer",
+    title: "Intelligence",
     items: [
-      "Expert Knowledge Copilot (Q&A + citations + optional Gemini)",
-      "Maintenance RCA Agent (root cause + prioritized actions)",
-      "Compliance Intelligence Agent (audit gaps + action queue)",
+      "Copilot Q&A with citations (local RAG default)",
+      "Optional Gemini rewrite — click-only, never the default path",
+      "RCA and Compliance agents with a single branch decision for summary + actions",
+      "RCA playbooks are tag-exact (P-101 / AC-07 / B-401); other indexed tags get evidence review",
     ],
   },
   {
-    title: "Output Layer",
+    title: "Outputs",
     items: [
-      "Source-cited answers with confidence scores",
-      "Click-through citations to originating documents",
-      "Graph view + exportable RCA / compliance action reports",
+      "Cited answers with click-through document highlights",
+      "Exportable RCA / compliance reports that match on-screen evidence",
+      "Filterable graph with explicit relation meanings",
     ],
   },
 ];
@@ -41,22 +42,21 @@ export default function ArchitecturePage() {
     <div>
       <PageHeader
         title="System Architecture"
-        description="OpsMind architecture for PS-8: unified industrial knowledge ingestion, retrieval, knowledge graph linking, and agentic intelligence."
-        badge="Honest implementation map"
+        description="OpsMind is a local-first industrial knowledge layer: ingest plant records, retrieve grounded answers, and run maintenance / compliance agents over the same corpus."
       />
 
       <div className="mb-8 rounded-xl border border-slate-800 bg-slate-900/60 p-6">
         <div className="flex flex-col items-center gap-3 text-center text-sm">
           {[
-            "Heterogeneous Plant Documents + Uploads",
+            "Plant documents + session uploads",
             "↓",
-            "Ingestion · Chunking · Entity Tagging",
+            "Parse · chunk · extract entities",
             "↓",
-            "Local RAG Retrieval + Knowledge Graph",
+            "Keyword RAG + knowledge graph",
             "↓",
-            "Copilot · RCA Agent · Compliance Agent",
+            "Copilot · RCA · Compliance",
             "↓",
-            "Cited Answers · Graph Links · Action Queues",
+            "Cited answers · action reports · graph",
           ].map((line, index) => (
             <div
               key={`flow-${index}`}
@@ -92,16 +92,23 @@ export default function ArchitecturePage() {
       </div>
 
       <section className="mt-8 rounded-xl border border-slate-800 bg-slate-900/60 p-6">
-        <h2 className="text-lg font-medium text-white">Tech Stack</h2>
+        <h2 className="text-lg font-medium text-white">What this is — and is not</h2>
+        <ul className="mt-3 space-y-2 text-sm text-slate-400">
+          <li>• Retrieval is keyword-scored local RAG over a curated corpus. There is no vector database.</li>
+          <li>• Gemini is an optional rewrite of an already-retrieved context window, not the retrieval engine.</li>
+          <li>• Session uploads live in the browser and are sent with API requests. That is intentional for Vercel/serverless.</li>
+          <li>• Match percentages come from term coverage and TF-IDF weight, so they are absolute rather than a ranking artifact. A weak match shows a low number.</li>
+          <li>• Nothing is answered from outside the corpus. An unmatched question, scope, or equipment tag returns a refusal with no citations instead of a plausible-looking analysis.</li>
+        </ul>
         <div className="mt-4 flex flex-wrap gap-2">
           {[
             "Next.js 15",
             "React 19",
+            "TypeScript",
             "Tailwind CSS",
             "Local keyword RAG",
-            "Knowledge graph (metadata-derived)",
-            "Gemini API (optional)",
-            "TypeScript",
+            "Metadata knowledge graph",
+            "Gemini (optional)",
           ].map((tech) => (
             <span
               key={tech}
@@ -112,18 +119,8 @@ export default function ArchitecturePage() {
           ))}
         </div>
         <p className="mt-4 text-sm text-slate-400">
-          Submission-day snapshot: Git tag{" "}
-          <code className="rounded bg-slate-950 px-1.5 py-0.5 text-cyan-300">
-            v1.0-submission
-          </code>
-          . The latest{" "}
-          <code className="rounded bg-slate-950 px-1.5 py-0.5 text-cyan-300">
-            main
-          </code>{" "}
-          branch includes upload pipeline, knowledge graph view, citation deep-links,
-          and computed dashboard metrics.{" "}
           <Link href="/graph" className="text-cyan-400 hover:text-cyan-300">
-            View knowledge graph →
+            Open the knowledge graph →
           </Link>
         </p>
       </section>

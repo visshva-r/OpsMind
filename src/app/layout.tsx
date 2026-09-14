@@ -9,7 +9,7 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "OpsMind | Industrial Knowledge Intelligence",
   description:
-    "AI-powered Industrial Knowledge Intelligence platform for ET AI Hackathon 2026 - Problem Statement 8",
+    "Industrial knowledge intelligence — query plant SOPs, run RCA and compliance agents, and explore an equipment knowledge graph.",
   icons: {
     icon: "/icon.svg",
   },

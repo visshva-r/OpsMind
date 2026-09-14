@@ -1,31 +1,107 @@
-import { getDocumentById } from "./rag";
-import type { DocumentChunk } from "./types";
+import type { RetrievalHit } from "./rag";
 
-type RetrievedChunk = { chunk: DocumentChunk; score: number };
+const MAX_BULLETS = 8;
+const MAX_BULLETS_PER_DOCUMENT = 3;
 
-function tokenize(text: string): string[] {
-  return text
+interface EvidenceLine {
+  documentTitle: string;
+  text: string;
+}
+
+interface Intent {
+  id: string;
+  test: (query: string) => boolean;
+  title: string;
+  keywords: string[];
+}
+
+/**
+ * Intents only decide which sentences to surface first and how to caption them.
+ * They never supply content of their own, so an answer can never mention a
+ * document, valve tag, or limit that is not in the retrieved evidence.
+ */
+const INTENTS: Intent[] = [
+  {
+    id: "isolation",
+    test: (q) =>
+      /isolat|loto|lock ?out|tag ?out/.test(q) ||
+      (/open|remov/.test(q) && /casing|cover/.test(q)),
+    title: "Isolation and lock-out steps recorded in the indexed procedures:",
+    keywords: [
+      "isolat", "loto", "v-101", "cp-2b", "mcc", "lock", "valve", "casing",
+      "suction", "discharge", "permit", "drain", "vent", "bypass",
+      "depressur", "blind",
+    ],
+  },
+  {
+    id: "vibration",
+    test: (q) => /vibration|misalign|alignment/.test(q),
+    title: "Vibration and alignment evidence across the corpus:",
+    keywords: [
+      "vibration", "mm/s", "alarm", "limit", "rms", "bearing", "alignment",
+      "trip", "excursion",
+    ],
+  },
+  {
+    id: "seal",
+    test: (q) => /seal|leak|gland|packing/.test(q),
+    title: "Seal and leakage evidence from work orders, inspections, and OEM guidance:",
+    keywords: [
+      "seal", "leak", "flush", "drops", "deferred", "dry running", "mechanical",
+      "gland", "replace",
+    ],
+  },
+  {
+    id: "temperature",
+    test: (q) => /temperature|overheat|thermal|cooling/.test(q),
+    title: "Temperature and cooling evidence in the indexed records:",
+    keywords: [
+      "temperature", "°c", "deg", "cooling", "alarm", "intercooler", "trip",
+      "basin", "heat",
+    ],
+  },
+  {
+    id: "compliance",
+    test: (q) =>
+      /complian|audit|factory act|oisd|peso|statutory|regulat|permit|certificate/.test(q),
+    title: "Regulatory and audit evidence in the indexed records:",
+    keywords: [
+      "factory act", "oisd", "peso", "rule", "sec 40", "permit", "certificate",
+      "audit", "statutory", "logbook", "24 hour", "overdue", "calibration",
+    ],
+  },
+];
+
+function queryKeywords(query: string): string[] {
+  return query
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, " ")
     .split(/\s+/)
-    .filter((token) => token.length > 2);
+    .filter((token) => token.length > 3);
 }
 
+function sentences(content: string): string[] {
+  return content
+    .split(/\n+|(?<=[.!])\s+/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 12);
+}
+
+/** Snap to word boundaries so excerpts never end mid-word. */
 export function buildSmartExcerpt(
   content: string,
   query: string,
-  maxLen = 320
+  maxLen = 420
 ): string {
-  const keywords = tokenize(query);
-  if (!keywords.length) {
-    return content.length > maxLen ? `${content.slice(0, maxLen)}...` : content;
-  }
+  const keywords = queryKeywords(query);
+  if (content.length <= maxLen) return content.trim();
+  if (!keywords.length) return `${content.slice(0, maxLen).trim()}...`;
 
   const lower = content.toLowerCase();
   let bestStart = 0;
   let bestScore = -1;
 
-  for (let i = 0; i < content.length; i += 40) {
+  for (let i = 0; i < content.length; i += 30) {
     const window = lower.slice(i, i + maxLen);
     const score = keywords.reduce(
       (sum, kw) => sum + (window.includes(kw) ? 1 : 0),
@@ -37,146 +113,109 @@ export function buildSmartExcerpt(
     }
   }
 
-  let excerpt = content.slice(bestStart, bestStart + maxLen).trim();
-  if (bestStart > 0) excerpt = `...${excerpt}`;
-  if (bestStart + maxLen < content.length) excerpt = `${excerpt}...`;
+  let start = bestStart;
+  let end = Math.min(content.length, bestStart + maxLen);
+  if (start > 0) {
+    const boundary = content.lastIndexOf(" ", start);
+    start = boundary === -1 ? start : boundary + 1;
+  }
+  if (end < content.length) {
+    const boundary = content.indexOf(" ", end);
+    end = boundary === -1 ? content.length : boundary;
+  }
+
+  let excerpt = content.slice(start, end).trim();
+  if (start > 0) excerpt = `...${excerpt}`;
+  if (end < content.length) excerpt = `${excerpt}...`;
   return excerpt;
 }
 
-function extractMatchingLines(content: string, keywords: string[]): string[] {
-  const parts = content.split(/\n|(?<=[.!])\s+/);
-  return parts
-    .map((p) => p.trim())
-    .filter(
-      (p) =>
-        p.length > 10 &&
-        keywords.some((kw) => p.toLowerCase().includes(kw))
-    )
-    .slice(0, 6);
+/**
+ * Weights a sentence by how many intent keywords it hits, with earlier keywords
+ * counting for more. Document order alone put "seal leakage requires isolation"
+ * ahead of the actual isolation steps.
+ */
+function sentenceWeight(sentence: string, keywords: string[]): number {
+  const lower = sentence.toLowerCase();
+  let weight = 0;
+  keywords.forEach((keyword, index) => {
+    if (lower.includes(keyword)) weight += keywords.length - index;
+  });
+  return weight;
 }
 
-function formatBullets(title: string, lines: string[], sources: string[]): string {
-  const bullets = lines.map((line, i) => `${i + 1}. ${line}`).join("\n");
+function collectEvidence(
+  hits: RetrievalHit[],
+  keywords: string[]
+): EvidenceLine[] {
+  const lines: EvidenceLine[] = [];
+  const seen = new Set<string>();
+
+  for (const hit of hits) {
+    const ranked = sentences(hit.document.content)
+      .map((text, order) => ({ text, order, weight: sentenceWeight(text, keywords) }))
+      .filter((item) => item.weight > 0)
+      .sort((a, b) => b.weight - a.weight || a.order - b.order)
+      .slice(0, MAX_BULLETS_PER_DOCUMENT);
+
+    for (const item of ranked) {
+      const fingerprint = item.text.toLowerCase().slice(0, 60);
+      if (seen.has(fingerprint)) continue;
+
+      seen.add(fingerprint);
+      lines.push({ documentTitle: hit.document.title, text: item.text });
+      if (lines.length >= MAX_BULLETS) return lines;
+    }
+  }
+
+  return lines;
+}
+
+function render(title: string, lines: EvidenceLine[]): string {
+  const bullets = lines
+    .map((line, index) => `${index + 1}. **${line.documentTitle}:** ${line.text}`)
+    .join("\n");
+  const sources = [...new Set(lines.map((line) => line.documentTitle))];
+
   return `${title}\n\n${bullets}\n\n**Sources:** ${sources.join("; ")}.`;
 }
 
 export function synthesizeFromRetrieval(
   query: string,
-  retrieved: RetrievedChunk[]
+  hits: RetrievalHit[]
 ): string {
+  if (!hits.length) {
+    return "No indexed plant record matches that question. Try an equipment tag such as P-101 or AC-07, or upload a related SOP, work order, or inspection report on the Documents page.";
+  }
+
   const lower = query.toLowerCase();
-  const sop = getDocumentById("doc-sop-p101");
-  const pid = getDocumentById("doc-pid-excerpt");
-  const inspection = getDocumentById("doc-inspection-p101");
-  const manual = getDocumentById("doc-manual-p101");
-  const wo = getDocumentById("doc-wo-p101");
-  const factoryAct = getDocumentById("doc-factory-act");
-  const oisd = getDocumentById("doc-oistd-safety");
-  const nearMiss = getDocumentById("doc-nearmiss-cs");
+  const intent = INTENTS.find((candidate) => candidate.test(lower));
+  const fallbackKeywords = queryKeywords(query);
 
-  if (
-    lower.includes("isolation") ||
-    lower.includes("loto") ||
-    (lower.includes("opening") && lower.includes("casing"))
-  ) {
-    return formatBullets(
-      "Isolation procedure for Pump P-101 before opening the casing:",
-      [
-        "**Close suction valve V-101A** and **discharge valve V-101B** before any maintenance (P&ID + SOP).",
-        "**Apply LOTO on MCC panel CP-2B** before opening the pump casing (Preventive Maintenance SOP).",
-        "Verify P-101 suction from CT-02 basin via strainer ST-101; discharge routes to exchangers E-201 and E-202.",
-        "Confirm check valve **CV-101** prevents backflow on the shared header with P-102.",
-        "If P-102 is under maintenance in parallel, ensure bypass line **BL-101** is open per P&ID guidance.",
-        "**Safety gate:** Seal leakage above 5 drops/min requires immediate isolation and a maintenance work order.",
-      ],
-      [sop?.title ?? "SOP", pid?.title ?? "P&ID"].filter(Boolean)
-    );
-  }
-
-  if (
-    lower.includes("vibration") &&
-    (lower.includes("limit") ||
-      lower.includes("status") ||
-      lower.includes("current"))
-  ) {
-    return formatBullets(
-      "Vibration limits and current status for Pump P-101:",
-      [
-        "**OEM / SOP limit:** Vibration velocity must not exceed **7.1 mm/s RMS** (OISD-GDN-118 aligned).",
-        "**Current inspection reading:** **8.4 mm/s** on drive-end bearing — **above limit** (Dec 2025 inspection).",
-        "**Historical context:** Prior bearing replacement at **9.2 mm/s** with misalignment suspected (WO-24156).",
-        "**OISD requirement:** Any alarm excursion requires documented investigation within **24 hours**.",
-        "**Recommended action:** Raise priority work order, perform alignment check, and replace seal if leakage persists.",
-      ],
-      [
-        sop?.title ?? "SOP",
-        inspection?.title ?? "Inspection",
-        oisd?.title ?? "OISD",
-      ]
-    );
-  }
-
-  if (
-    lower.includes("seal") &&
-    (lower.includes("fail") ||
-      lower.includes("why") ||
-      lower.includes("repeat"))
-  ) {
-    return formatBullets(
-      "Why Pump P-101 is experiencing repeat seal failures:",
-      [
-        "**Deferred permanent fix:** WO-24288 applied temporary seal leak arrest; permanent seal change was deferred.",
-        "**Vibration excursions:** Inspection shows 8.4 mm/s (limit 7.1 mm/s); post-maintenance misalignment has recurred.",
-        "**Temperature events:** WO-24091 replaced seal after temperature rose to 82°C — indicates seal face wear.",
-        "**OEM failure mode:** Dry running >90 seconds damages seal faces; verify minimum flow 180 m3/h from CT-02.",
-        "**Systemic gap:** Repeat failures within 12 months should trigger formal RCA and reliability board review.",
-      ],
-      [wo?.title ?? "Work Orders", inspection?.title ?? "Inspection", manual?.title ?? "OEM Manual"]
-    );
-  }
-
-  if (lower.includes("compliance") || lower.includes("audit")) {
-    return formatBullets(
-      "Compliance gaps before the next Factory Act / OISD audit:",
-      [
-        "**Factory Act Sec 40B:** Maintenance logbook entries and signed inspection evidence required for critical machinery.",
-        "**OISD-GDN-118:** Vibration alarm on P-101 lacks documented 24-hour investigation closure.",
-        "**Permit-to-work:** Near-miss on V-220 shows permit was not revalidated after process upset; gas detector calibration overdue.",
-        "**Rule 68:** Work permit system mandatory for hazardous-area maintenance — audit trail must include gas test sheets.",
-        "**Before audit:** Close overdue inspections, attach RCA for repeat P-101 failures, refresh permit revalidation workflow.",
-      ],
-      [
-        factoryAct?.title ?? "Factory Act",
-        oisd?.title ?? "OISD",
-        nearMiss?.title ?? "Near Miss Report",
-      ]
-    );
-  }
-
-  const keywords = tokenize(query);
-  const lines: string[] = [];
-
-  for (const { chunk } of retrieved) {
-    const matches = extractMatchingLines(chunk.content, keywords);
-    for (const match of matches) {
-      if (!lines.some((l) => l.includes(match.slice(0, 40)))) {
-        lines.push(`**${chunk.documentTitle}:** ${match}`);
-      }
-    }
-    if (lines.length >= 5) break;
-  }
-
-  if (lines.length === 0) {
-    for (const { chunk } of retrieved.slice(0, 4)) {
-      const sentence =
-        chunk.content.split(/(?<=[.!])\s+/)[0] ?? chunk.content.slice(0, 200);
-      lines.push(`**${chunk.documentTitle}:** ${sentence}`);
+  let lines = intent ? collectEvidence(hits, intent.keywords) : [];
+  if (lines.length < 3) {
+    const extra = collectEvidence(hits, fallbackKeywords);
+    for (const line of extra) {
+      if (lines.length >= MAX_BULLETS) break;
+      const duplicate = lines.some(
+        (existing) => existing.text.slice(0, 60) === line.text.slice(0, 60)
+      );
+      if (!duplicate) lines.push(line);
     }
   }
 
-  return formatBullets(
-    `OpsMind found ${retrieved.length} relevant knowledge sources for your query:`,
-    lines.slice(0, 5),
-    retrieved.slice(0, 3).map((r) => r.chunk.documentTitle)
-  );
+  // Last resort: lead with the opening sentence of each retrieved record rather
+  // than claiming there is nothing there.
+  if (!lines.length) {
+    lines = hits.slice(0, 4).map((hit) => ({
+      documentTitle: hit.document.title,
+      text: sentences(hit.document.content)[0] ?? hit.document.content.slice(0, 240),
+    }));
+  }
+
+  const title =
+    intent?.title ??
+    `OpsMind found ${hits.length} relevant record${hits.length === 1 ? "" : "s"} for your query:`;
+
+  return render(title, lines.slice(0, MAX_BULLETS));
 }

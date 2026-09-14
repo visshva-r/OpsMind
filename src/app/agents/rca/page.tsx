@@ -2,7 +2,15 @@
 
 import { FormEvent, useState } from "react";
 import { Loader2, Download, Play } from "lucide-react";
-import { CitationList, ConfidenceBadge, KnowledgeGraph, PageHeader } from "@/components/ui";
+import {
+  ActionCard,
+  CitationList,
+  ConfidenceBadge,
+  KnowledgeGraph,
+  PageHeader,
+} from "@/components/ui";
+import { withSessionDocuments } from "@/lib/api-client";
+import { formatAgentReport } from "@/lib/export-report";
 import type { AgentResult } from "@/lib/types";
 
 export default function RcaAgentPage() {
@@ -12,18 +20,27 @@ export default function RcaAgentPage() {
   );
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AgentResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function runAgent(event: FormEvent) {
     event.preventDefault();
     setLoading(true);
+    setError(null);
 
     try {
       const response = await fetch("/api/agents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agent: "rca", equipmentTag, symptoms }),
+        body: JSON.stringify(
+          withSessionDocuments({ agent: "rca", equipmentTag, symptoms })
+        ),
       });
       const data = await response.json();
+      if (!response.ok) {
+        setResult(null);
+        setError(String(data.error ?? "RCA request failed"));
+        return;
+      }
       setResult(data);
     } finally {
       setLoading(false);
@@ -32,17 +49,11 @@ export default function RcaAgentPage() {
 
   function exportActions() {
     if (!result) return;
-    const text = [
-      `OpsMind RCA Report — ${equipmentTag}`,
-      "",
-      result.summary,
-      "",
-      "Recommended Actions:",
-      ...result.actions.map(
-        (a, i) =>
-          `${i + 1}. [${a.priority.toUpperCase()}] ${a.title} — ${a.description} (Owner: ${a.owner}, Due: ${a.dueIn})`
-      ),
-    ].join("\n");
+    const text = formatAgentReport(result, {
+      title: `OpsMind RCA Report — ${equipmentTag}`,
+      equipmentTag,
+      symptoms,
+    });
     const blob = new Blob([text], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -98,6 +109,12 @@ export default function RcaAgentPage() {
         </button>
       </form>
 
+      {error && (
+        <p className="mb-6 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          {error}
+        </p>
+      )}
+
       {result && (
         <div className="space-y-6">
           <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
@@ -128,31 +145,7 @@ export default function RcaAgentPage() {
             </div>
             <div className="mt-4 space-y-4">
               {result.actions.map((action) => (
-                <div
-                  key={action.title}
-                  className="rounded-lg border border-slate-800 bg-slate-950/70 p-4"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs uppercase ${
-                        action.priority === "critical"
-                          ? "bg-red-500/10 text-red-300"
-                          : action.priority === "high"
-                            ? "bg-amber-500/10 text-amber-300"
-                            : "bg-slate-700 text-slate-300"
-                      }`}
-                    >
-                      {action.priority}
-                    </span>
-                    <h3 className="text-sm font-medium text-white">{action.title}</h3>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">
-                    {action.description}
-                  </p>
-                  <p className="mt-2 text-xs text-slate-500">
-                    Owner: {action.owner} · Due in {action.dueIn}
-                  </p>
-                </div>
+                <ActionCard key={action.title} action={action} />
               ))}
             </div>
           </section>

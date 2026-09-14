@@ -1,29 +1,21 @@
-# OpsMind — Industrial Knowledge Intelligence Platform
+# OpsMind — Industrial Knowledge Intelligence
 
-**ET AI Hackathon 2026 | Problem Statement 8**  
-*AI for Industrial Knowledge Intelligence: Unified Asset & Operations Brain*
+Query plant SOPs, work orders, inspections, and regulations in one place. OpsMind retrieves grounded answers, runs RCA and compliance agents, and shows how equipment, documents, and rules connect.
 
-## Repository Versions
+Originally built for ET AI Hackathon 2026 (PS-8). This repository is the product continuation of that prototype.
 
-Round 2 was submitted on **22 July 2026**. The submission-day codebase is tagged:
+## Live demo
+
+Production URL: **not published yet** (Vercel CLI is not logged in on this machine).
 
 ```bash
-git checkout v1.0-submission
+npx vercel login
+npx vercel --prod
 ```
 
-The `main` branch includes **ongoing improvements** such as:
+Paste the printed `https://*.vercel.app` URL here after the first production deploy. Local run works now.
 
-- Real `.txt` / `.md` upload → chunk → query in Copilot
-- Metadata-derived **knowledge graph** view (`/graph`)
-- Citation deep-links to source documents
-- Computed dashboard metrics (no hardcoded stats)
-- Updated architecture documentation
-
-## Problem We Solve
-
-Industrial plants operate across 7–12 disconnected document systems — SOPs, work orders, inspection reports, OEM manuals, and regulatory submissions. OpsMind unifies this fragmented knowledge into one AI intelligence layer so maintenance, safety, and compliance teams can query, act, and audit faster.
-
-## Live Demo
+## Local run
 
 ```bash
 npm install
@@ -32,51 +24,73 @@ npm run dev
 
 Open [http://localhost:3010](http://localhost:3010)
 
-> OpsMind uses port **3010** by default so it won't clash with other Next.js projects on 3000/3001.
+Optional Gemini rewrite (Copilot checkbox only):
 
-Optional: add `GEMINI_API_KEY` in `.env.local` for richer LLM responses. The demo works without any API key using local RAG synthesis.
-
-## Features
-
-1. **Document Ingestion** — 12 seeded industrial records + live `.txt`/`.md` upload with equipment/regulatory entity extraction
-2. **Expert Knowledge Copilot** — RAG chat with source citations, confidence scores, and click-through document links
-3. **Maintenance RCA Agent** — Root cause analysis with prioritized corrective actions and knowledge graph links
-4. **Compliance Intelligence Agent** — Maps Factory Act / OISD / PESO requirements to current records and flags audit gaps
-5. **Knowledge Graph** — Visual graph of equipment → documents → regulations → failure modes
-
-## Architecture
-
-```
-Documents (+ Upload) → Chunking → Keyword RAG → Copilot / Agents → Citations + Actions
-                         ↓
-              Knowledge Graph (metadata-derived)
+```bash
+cp .env.example .env.local
+# set GEMINI_API_KEY
 ```
 
-## Tech Stack
+The app is designed to work without any API key. Retrieval is local keyword RAG.
 
-- **Frontend:** Next.js 15, React 19, Tailwind CSS
-- **AI Layer:** Local keyword-scored RAG + optional Gemini API
-- **Knowledge:** Equipment tags, regulatory refs, graph linking from ingested metadata
+## What it does
 
-## Demo Script
+1. **Ingestion** — 12 seeded industrial records plus `.txt` / `.md` / `.csv` / `.json` upload with entity extraction
+2. **Copilot** — cited Q&A over the corpus, including session uploads
+3. **RCA agent** — equipment + symptoms → evidence-backed actions and an exportable report
+4. **Compliance agent** — Factory Act / OISD / PESO gap review with matching summary and actions
+5. **Knowledge graph** — filterable equipment → document → regulation → failure links
 
-1. **Dashboard** — Show computed stats and indexed corpus
-2. **Documents** — Upload a `.txt` SOP mentioning equipment tags (e.g. P-101)
-3. **Copilot** — Ask a question about the uploaded content; click a citation
-4. **Knowledge Graph** — Show equipment/regulation/failure links
-5. **RCA Agent** — Run analysis for P-101 high vibration + seal leakage
-6. **Compliance Agent** — Run Unit-2 audit scope check
+Uploads are parsed by the server but **never stored** there. They persist in your browser and are replayed with each API request, which is what keeps them queryable on Vercel — serverless functions do not share in-memory state, and a shared store would leak one visitor's uploads into another visitor's results.
 
-## Team / Submission
+## Verification
 
-- **Problem Statement:** PS-8
-- **GitHub:** https://github.com/visshva-r/OpsMind
-- **Submission tag:** `v1.0-submission`
+The API contract is covered by a dependency-free check suite. Start the app, then in a second terminal:
 
-## Impact
+```bash
+npm run verify
+```
 
-- Reduces time searching for operational knowledge (McKinsey: 35% of industrial professional time)
-- Connects repeat failures across work orders and inspections
-- Surfaces compliance gaps before statutory audits
+It asserts 54 behaviours against the live routes, including citation uniqueness, that answers only cite retrieved documents, that isolation answers name V-101A / V-101B / LOTO CP-2B, that RCA playbooks are tag-exact (P-102 does not inherit P-101), that agent summaries and actions agree, that unsupported queries are refused rather than answered, that CSV rows are parsed into searchable prose, and that an upload in one session does not appear in another. Point it elsewhere with `BASE_URL=https://your-deployment npm run verify`.
 
-Built for Octave-aligned industrial intelligence: Design, Build, Operate, Protect.
+`node scripts/demo-preview.mjs` prints the four headline Copilot answers with their scores and sources, which is handy for rehearsing a walkthrough.
+
+## Architecture (honest)
+
+```
+Documents + session uploads
+        ↓
+Parse / chunk / extract tags
+        ↓
+Keyword RAG + metadata graph
+        ↓
+Copilot · RCA · Compliance
+```
+
+- Retrieval is **keyword / BM25-style scoring**, not a vector database
+- Gemini is **optional and click-only**; it rewrites retrieved context, it does not replace RAG
+- Agents decide a **single branch** so summary, actions, and export stay consistent. RCA playbooks are **tag-exact** (P-101, AC-07, B-401); other indexed tags get evidence review rather than a neighbouring asset's failure story
+- Match percentages are **absolute**, derived from term coverage and TF-IDF weight — they are not a ranking artifact, so a weak match reads as weak
+- When nothing in the corpus supports a question, the answer says so. Agents return no citations and no actions rather than inventing an analysis for an unknown asset
+
+## Deploy (Vercel)
+
+```bash
+npx vercel --prod
+```
+
+Add `GEMINI_API_KEY` in the Vercel project if you want the optional Copilot enhancement.
+
+## Demo path
+
+1. Dashboard — corpus stats (refresh live from your session, not baked at build time)
+2. Documents — upload `samples/p101-field-note.txt` (or `samples/ac07-inspection-log.csv` to see CSV rows flattened into searchable prose)
+3. Copilot — ask for the field-note vibration reading, then click a citation to jump to the highlighted passage in the source record
+4. Knowledge graph — filter `P-101`; the upload appears as a new node
+5. RCA — P-101 high vibration + seal leakage; export report. Then try tag `P-102` (indexed, but no pump playbook) and `ZZ-999` (unknown) to see evidence-review vs refusal
+6. Compliance — scope `Unit-2 Factory Act maintenance records`; export report
+
+## Repository
+
+- GitHub: https://github.com/visshva-r/OpsMind
+- Hackathon snapshot tag: `v1.0-submission`

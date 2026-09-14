@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { answerWithRag, recordQueryTime } from "@/lib/agents";
+import { answerWithRag } from "@/lib/agents";
+import { sanitizeSessionDocuments } from "@/lib/document-store";
 
 export async function POST(request: Request) {
-  const body = await request.json();
+  const body = await request.json().catch(() => ({}));
   const query = String(body.query ?? "").trim();
 
   if (!query) {
@@ -10,9 +11,10 @@ export async function POST(request: Request) {
   }
 
   const start = Date.now();
-  const result = await answerWithRag(query);
-  const elapsedMs = Date.now() - start;
-  recordQueryTime(elapsedMs);
+  const result = await answerWithRag(query, {
+    useGemini: Boolean(body.useGemini),
+    sessionDocuments: sanitizeSessionDocuments(body.sessionDocuments),
+  });
 
-  return NextResponse.json({ ...result, elapsedMs });
+  return NextResponse.json({ ...result, elapsedMs: Date.now() - start });
 }

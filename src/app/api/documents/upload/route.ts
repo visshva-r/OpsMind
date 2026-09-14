@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
-import {
-  addUploadedDocument,
-  inferDocumentType,
-} from "@/lib/document-store";
-import { invalidateChunkCache } from "@/lib/rag";
+import { buildDocumentFromUpload, inferDocumentType } from "@/lib/document-store";
 
 const MAX_FILE_SIZE = 200_000;
-const ALLOWED_EXTENSIONS = [".txt", ".md"];
+const ALLOWED_EXTENSIONS = [".txt", ".md", ".csv", ".json"];
 
+/**
+ * Parses and returns the document without storing it. The caller persists it in
+ * its own browser session and replays it with each request, so two visitors to
+ * the same deployment never see each other's uploads.
+ */
 export async function POST(request: Request) {
   let formData: FormData;
   try {
@@ -27,10 +28,9 @@ export async function POST(request: Request) {
     }
 
     const filename = file.name.toLowerCase();
-    const allowed = ALLOWED_EXTENSIONS.some((ext) => filename.endsWith(ext));
-    if (!allowed) {
+    if (!ALLOWED_EXTENSIONS.some((ext) => filename.endsWith(ext))) {
       return NextResponse.json(
-        { error: "Only .txt and .md files are supported" },
+        { error: "Only .txt, .md, .csv, and .json files are supported" },
         { status: 400 }
       );
     }
@@ -50,30 +50,21 @@ export async function POST(request: Request) {
       );
     }
 
-    const doc = addUploadedDocument({
+    const document = buildDocumentFromUpload({
       filename: file.name,
       content,
       type: inferDocumentType(file.name),
     });
 
-    invalidateChunkCache();
+    if (!document.content.trim()) {
+      return NextResponse.json(
+        { error: "No readable text could be extracted from this file" },
+        { status: 400 }
+      );
+    }
 
-    return NextResponse.json({
-      message: "Document indexed successfully",
-      document: {
-        id: doc.id,
-        title: doc.title,
-        type: doc.type,
-        equipmentTags: doc.equipmentTags,
-        regulatoryRefs: doc.regulatoryRefs,
-        lastUpdated: doc.lastUpdated,
-        preview: doc.content.slice(0, 180) + "...",
-      },
-    });
+    return NextResponse.json({ message: "Document indexed successfully", document });
   } catch {
-    return NextResponse.json(
-      { error: "Failed to process upload" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to process upload" }, { status: 500 });
   }
 }

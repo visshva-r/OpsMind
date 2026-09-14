@@ -1,7 +1,7 @@
 export function DemoBanner() {
   return (
     <div className="border-b border-cyan-500/20 bg-cyan-500/5 px-4 py-2 text-center text-xs text-cyan-200">
-      Demo Mode · Unit-2 Cooling Water (P-101) + AC-07 Compressor · ET AI Hackathon 2026 · PS-8
+      Demo corpus · Unit-2 cooling water (P-101) and compressor AC-07
     </div>
   );
 }
@@ -9,7 +9,7 @@ export function DemoBanner() {
 export function SiteFooter() {
   return (
     <footer className="mt-12 border-t border-slate-800 py-6 text-center text-xs text-slate-500">
-      OpsMind · Problem Statement 8 — Industrial Knowledge Intelligence · ET AI Hackathon 2026
+      OpsMind — Industrial Knowledge Intelligence
     </footer>
   );
 }

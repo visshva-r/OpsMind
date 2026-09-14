@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { citationAnchor } from "@/lib/citation";
 
 export function PageHeader({
   title,
@@ -46,17 +47,72 @@ export function StatCard({
 
 export function ConfidenceBadge({ score }: { score: number }) {
   const pct = Math.round(score * 100);
+
+  if (pct <= 0) {
+    return (
+      <span className="rounded-full bg-slate-700/50 px-2 py-0.5 text-xs text-slate-300">
+        No supporting evidence
+      </span>
+    );
+  }
+
   const style =
-    pct >= 85
+    pct >= 75
       ? "bg-emerald-500/10 text-emerald-300"
-      : pct >= 70
+      : pct >= 55
         ? "bg-cyan-500/10 text-cyan-300"
         : "bg-amber-500/10 text-amber-300";
 
   return (
     <span className={`rounded-full px-2 py-0.5 text-xs ${style}`}>
-      {pct}% confidence
+      {pct}% retrieval match
     </span>
+  );
+}
+
+export function ActionCard({
+  action,
+}: {
+  action: {
+    priority: string;
+    title: string;
+    description: string;
+    owner: string;
+    dueIn: string;
+    citations: Array<{ documentTitle: string }>;
+  };
+}) {
+  return (
+    <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <span
+          className={`rounded-full px-2 py-0.5 text-xs uppercase ${
+            action.priority === "critical"
+              ? "bg-red-500/10 text-red-300"
+              : action.priority === "high"
+                ? "bg-amber-500/10 text-amber-300"
+                : "bg-slate-700 text-slate-300"
+          }`}
+        >
+          {action.priority}
+        </span>
+        <h3 className="text-sm font-medium text-white">{action.title}</h3>
+      </div>
+      <p className="mt-2 text-sm leading-6 text-slate-400">{action.description}</p>
+      <p className="mt-2 text-xs text-slate-500">
+        Owner: {action.owner} · Due in {action.dueIn}
+      </p>
+      {action.citations.length > 0 ? (
+        <p className="mt-1 text-xs text-cyan-400/80">
+          Evidence:{" "}
+          {action.citations.map((citation) => citation.documentTitle).join("; ")}
+        </p>
+      ) : (
+        <p className="mt-1 text-xs text-slate-600">
+          No citation in the indexed corpus supports this item directly.
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -86,7 +142,7 @@ export function CitationList({
           <div className="flex items-center justify-between gap-3">
             {citation.documentId ? (
               <Link
-                href={`/documents?id=${encodeURIComponent(citation.documentId)}&highlight=${encodeURIComponent(citation.excerpt.slice(0, 80))}`}
+                href={`/documents?id=${encodeURIComponent(citation.documentId)}&highlight=${encodeURIComponent(citationAnchor(citation.excerpt))}`}
                 className="text-sm font-medium text-cyan-300 hover:text-cyan-200 hover:underline"
               >
                 {citation.documentTitle}

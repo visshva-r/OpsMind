@@ -1,0 +1,6 @@
+date,equipment_tag,parameter,reading,limit,status,note
+2026-01-08,AC-07,Discharge Temperature,108 degC,110 degC,Approaching alarm,"Load held at 85 percent, cooling water inlet 34 degC"
+2026-01-08,AC-07,Intercooler Drain Interval,39 days,30 days,Overdue,Moisture carryover risk if not restored
+2026-01-08,AC-07,PESO Safety Valve Certificate,22 days to expiry,Valid certificate required,Action required,Schedule PESO approved test before expiry
+2026-01-15,AC-07,Vibration,4.2 mm/s,7.1 mm/s,Within limit,OISD-GDN-118 reference reading
+2026-01-15,P-102,Discharge Pressure,4.8 bar,6.0 bar,Within limit,Standby pump on shared header with P-101

@@ -41,6 +41,9 @@ export interface ChatMessage {
   content: string;
   citations?: Citation[];
   confidence?: number;
+  engine?: "local" | "gemini";
+  /** True when the client asked for Gemini, even if the reply stayed on local RAG. */
+  geminiRequested?: boolean;
 }
 
 export interface AgentAction {
@@ -70,8 +73,8 @@ export interface KnowledgeLink {
 
 export interface DashboardStats {
   documentsIndexed: number;
-  equipmentNodes: number;
+  /** Plant tags such as P-101, excluding free-text descriptors. */
+  assetTags: number;
   complianceRules: number;
   graphEdges: number;
-  avgQueryTimeMs: number;
 }

@@ -1,10 +1,11 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Copy, Send } from "lucide-react";
 import { CitationList, ConfidenceBadge, PageHeader } from "@/components/ui";
 import { ChatSkeleton } from "@/components/shell";
+import { fetchCorpus, withSessionDocuments } from "@/lib/api-client";
 import { MarkdownMessage } from "@/lib/markdown";
 import type { ChatMessage, Citation } from "@/lib/types";
 
@@ -21,25 +22,68 @@ export default function CopilotClient() {
     {
       role: "assistant",
       content:
-        "I am OpsMind Expert Copilot. Ask about maintenance history, SOP limits, regulatory requirements, or equipment relationships. I answer with source citations and confidence scores.",
-      confidence: 1,
+        "I am OpsMind Expert Copilot. Ask about maintenance history, SOP limits, regulatory requirements, or uploaded records. Answers are grounded in the local corpus with source citations.",
     },
   ]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [docCount, setDocCount] = useState(12);
+  const [useGemini, setUseGemini] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const bootstrapped = useRef(false);
 
   useEffect(() => {
-    fetch("/api/documents")
-      .then((response) => response.json())
-      .then((data) => setDocCount(data.stats?.documentsIndexed ?? 12));
+    fetchCorpus().then((data) => {
+      if (data.stats.documentsIndexed > 0) setDocCount(data.stats.documentsIndexed);
+    });
   }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  const submitQuery = useCallback(
+    async function submitQuery(question: string) {
+      const trimmed = question.trim();
+      if (!trimmed || loading) return;
+
+      setMessages((prev) => [...prev, { role: "user", content: trimmed }]);
+      setQuery("");
+      setLoading(true);
+
+      try {
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(withSessionDocuments({ query: trimmed, useGemini })),
+        });
+        if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+        const data = await response.json();
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: data.answer,
+            citations: data.citations as Citation[],
+            confidence: data.confidence,
+            engine: data.engine,
+            geminiRequested: Boolean(data.geminiRequested),
+          },
+        ]);
+      } catch {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: "Sorry, I could not process that request. Please try again.",
+          },
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [loading, useGemini]
+  );
 
   useEffect(() => {
     const q = searchParams.get("q");
@@ -47,45 +91,7 @@ export default function CopilotClient() {
       bootstrapped.current = true;
       submitQuery(q);
     }
-  }, [searchParams]);
-
-  async function submitQuery(question: string) {
-    const trimmed = question.trim();
-    if (!trimmed || loading) return;
-
-    setMessages((prev) => [...prev, { role: "user", content: trimmed }]);
-    setQuery("");
-    setLoading(true);
-
-    try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: trimmed }),
-      });
-      const data = await response.json();
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: data.answer,
-          citations: data.citations as Citation[],
-          confidence: data.confidence,
-        },
-      ]);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content:
-            "Sorry, I could not process that request. Please try again.",
-        },
-      ]);
-    } finally {
-      setLoading(false);
-    }
-  }
+  }, [searchParams, submitQuery]);
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -100,22 +106,33 @@ export default function CopilotClient() {
     <div>
       <PageHeader
         title="Expert Knowledge Copilot"
-        description="RAG-powered conversational AI over SOPs, work orders, inspection reports, OEM manuals, and regulatory documents — with citations and confidence scores."
-        badge={`⚡ Local RAG Engine Active · ${docCount} Docs Indexed`}
+        description="Local keyword RAG over SOPs, work orders, inspections, manuals, and session uploads — with citations, confidence scores, and click-through source links."
+        badge={`Local RAG · ${docCount} docs indexed`}
       />
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        {starterQuestions.map((question) => (
-          <button
-            key={question}
-            type="button"
-            onClick={() => submitQuery(question)}
-            disabled={loading}
-            className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:border-cyan-500/50 hover:text-white disabled:opacity-50"
-          >
-            {question}
-          </button>
-        ))}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {starterQuestions.map((question) => (
+            <button
+              key={question}
+              type="button"
+              onClick={() => submitQuery(question)}
+              disabled={loading}
+              className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:border-cyan-500/50 hover:text-white disabled:opacity-50"
+            >
+              {question}
+            </button>
+          ))}
+        </div>
+        <label className="inline-flex items-center gap-2 text-xs text-slate-400">
+          <input
+            type="checkbox"
+            checked={useGemini}
+            onChange={(event) => setUseGemini(event.target.checked)}
+            className="accent-cyan-500"
+          />
+          Enhance with Gemini (optional)
+        </label>
       </div>
 
       <div className="rounded-xl border border-slate-800 bg-slate-900/60">
@@ -135,6 +152,19 @@ export default function CopilotClient() {
                   {message.confidence != null && message.role === "assistant" && (
                     <ConfidenceBadge score={message.confidence} />
                   )}
+                  {message.role === "assistant" && message.engine && index > 0 && (
+                    <span className="rounded-full border border-slate-700 px-2 py-0.5 text-[10px] text-slate-400">
+                      {message.engine === "gemini" ? "Gemini-enhanced" : "Local RAG"}
+                    </span>
+                  )}
+                  {message.role === "assistant" &&
+                    message.geminiRequested &&
+                    message.engine === "local" &&
+                    index > 0 && (
+                      <span className="rounded-full border border-amber-500/40 px-2 py-0.5 text-[10px] text-amber-300">
+                        Gemini requested — local RAG used
+                      </span>
+                    )}
                 </div>
                 {message.role === "assistant" && index > 0 && (
                   <button
@@ -172,7 +202,7 @@ export default function CopilotClient() {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Ask about equipment history, SOP limits, or compliance..."
+            placeholder="Ask about equipment history, SOP limits, or an uploaded record..."
             className="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none focus:border-cyan-500"
           />
           <button
@@ -185,6 +215,12 @@ export default function CopilotClient() {
           </button>
         </form>
       </div>
+      <p className="mt-3 text-xs text-slate-500">
+        Local RAG is the default and does not need an API key. Gemini runs only
+        when the checkbox is on and <code>GEMINI_API_KEY</code> is configured.
+        If Gemini is requested but the key is missing or the call fails, the
+        reply stays on local RAG and is labelled as such.
+      </p>
     </div>
   );
 }

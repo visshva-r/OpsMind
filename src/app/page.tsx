@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { ArrowRight, Bot, Brain, Play, ShieldCheck } from "lucide-react";
-import { PageHeader, StatCard } from "@/components/ui";
+import { ArrowRight, Bot, Brain, Network, Play, ShieldCheck } from "lucide-react";
+import { PageHeader } from "@/components/ui";
 import { getDashboardStats } from "@/lib/agents";
 import { getAllDocuments } from "@/lib/rag";
+import { DashboardStatCards } from "./dashboard-stats";
 
 const equipmentTags = ["P-101", "AC-07", "V-220", "CT-02", "B-401"];
 
@@ -14,7 +15,7 @@ export default function HomePage() {
     <div>
       <section className="mb-8 rounded-xl border border-cyan-500/20 bg-gradient-to-br from-cyan-500/10 via-slate-900/80 to-slate-950 p-6">
         <p className="text-xs uppercase tracking-widest text-cyan-400">
-          ET AI Hackathon 2026 · Problem Statement 8
+          Industrial Knowledge Intelligence
         </p>
         <h1 className="mt-2 text-2xl font-semibold text-white sm:text-3xl">
           Turning 7–12 disconnected plant systems into one queryable brain
@@ -38,28 +39,7 @@ export default function HomePage() {
         description="Real-time knowledge retrieval, root cause analysis, and compliance intelligence across heterogeneous industrial records."
       />
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="Documents Indexed"
-          value={stats.documentsIndexed}
-          hint="Heterogeneous industrial records unified"
-        />
-        <StatCard
-          label="Equipment Tags"
-          value={stats.equipmentNodes}
-          hint="Unique equipment entities across corpus"
-        />
-        <StatCard
-          label="Knowledge Graph Edges"
-          value={stats.graphEdges}
-          hint="Equipment, document, regulation, and failure links"
-        />
-        <StatCard
-          label="Avg Query Time"
-          value={`${stats.avgQueryTimeMs} ms`}
-          hint="Local RAG retrieval with source citations"
-        />
-      </div>
+      <DashboardStatCards initial={stats} />
 
       <div className="mb-8 flex flex-wrap gap-2">
         <span className="text-xs text-slate-500">Equipment tags:</span>
@@ -74,7 +54,7 @@ export default function HomePage() {
         ))}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-4">
         <FeatureCard
           href="/copilot"
           icon={Bot}
@@ -93,6 +73,12 @@ export default function HomePage() {
           title="Compliance Intelligence Agent"
           description="Detect audit gaps by mapping regulatory requirements to current procedures and records."
         />
+        <FeatureCard
+          href="/graph"
+          icon={Network}
+          title="Knowledge Graph"
+          description="See equipment, documents, regulations, and failure modes linked from the ingested corpus."
+        />
       </div>
 
       <section className="mt-10 rounded-xl border border-slate-800 bg-slate-900/50 p-6">
@@ -106,8 +92,9 @@ export default function HomePage() {
           </Link>
         </div>
         <p className="mt-2 text-sm text-slate-400">
-          Demo corpus includes {documents.length} industrial records across SOPs,
-          work orders, inspections, incidents, and regulatory excerpts.
+          The seed corpus contains {documents.length} industrial records across SOPs,
+          work orders, inspections, incidents, and regulatory excerpts. Anything you
+          upload is added on top, for your browser session only.
         </p>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           {documents.slice(0, 6).map((doc) => (

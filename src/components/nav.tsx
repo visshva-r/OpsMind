@@ -39,7 +39,7 @@ export function Sidebar() {
           <span className="text-lg font-semibold tracking-wide">OpsMind</span>
         </div>
         <p className="mt-2 text-xs leading-5 text-slate-400">
-          Industrial Knowledge Intelligence for ET AI Hackathon PS-8
+          Unified asset and operations knowledge layer
         </p>
       </div>
       <nav className="space-y-2">

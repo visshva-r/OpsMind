@@ -4,17 +4,10 @@ import { Suspense, useEffect, useMemo, useRef, useState, type ChangeEvent } from
 import { useSearchParams } from "next/navigation";
 import { Upload } from "lucide-react";
 import { PageHeader } from "@/components/ui";
-import type { DocumentType } from "@/lib/types";
-
-interface DocumentRecord {
-  id: string;
-  title: string;
-  type: DocumentType;
-  equipmentTags: string[];
-  regulatoryRefs: string[];
-  lastUpdated: string;
-  content: string;
-}
+import { fetchCorpus } from "@/lib/api-client";
+import { findAnchor } from "@/lib/citation";
+import { clearSessionDocuments, saveSessionDocument } from "@/lib/client-store";
+import type { DocumentType, IndustrialDocument } from "@/lib/types";
 
 const types: Array<DocumentType | "All"> = [
   "All",
@@ -27,30 +20,19 @@ const types: Array<DocumentType | "All"> = [
   "Procedure",
 ];
 
+/** Renders the full record with the cited passage marked, not a re-truncated window. */
 function highlightText(text: string, highlight: string) {
   if (!highlight.trim()) return text;
-  const index = text.toLowerCase().indexOf(highlight.toLowerCase().slice(0, 40));
-  if (index === -1) return text;
-  const start = Math.max(0, index - 60);
-  const end = Math.min(text.length, index + highlight.length + 120);
-  const excerpt = text.slice(start, end);
-  const lowerExcerpt = excerpt.toLowerCase();
-  const lowerHighlight = highlight.toLowerCase().slice(0, 40);
-  const matchIndex = lowerExcerpt.indexOf(lowerHighlight);
-
-  if (matchIndex === -1) {
-    return (start > 0 ? "..." : "") + excerpt + (end < text.length ? "..." : "");
-  }
+  const match = findAnchor(text, highlight);
+  if (!match) return text;
 
   return (
     <>
-      {start > 0 ? "..." : ""}
-      {excerpt.slice(0, matchIndex)}
+      {text.slice(0, match.index)}
       <mark className="rounded bg-cyan-500/20 px-1 text-cyan-100">
-        {excerpt.slice(matchIndex, matchIndex + lowerHighlight.length)}
+        {text.slice(match.index, match.index + match.length)}
       </mark>
-      {excerpt.slice(matchIndex + lowerHighlight.length)}
-      {end < text.length ? "..." : ""}
+      {text.slice(match.index + match.length)}
     </>
   );
 }
@@ -60,7 +42,7 @@ function DocumentsContent() {
   const initialTag = searchParams.get("tag") ?? "";
   const focusId = searchParams.get("id");
   const highlight = searchParams.get("highlight") ?? "";
-  const [documents, setDocuments] = useState<DocumentRecord[]>([]);
+  const [documents, setDocuments] = useState<IndustrialDocument[]>([]);
   const [search, setSearch] = useState(initialTag);
   const [typeFilter, setTypeFilter] = useState<DocumentType | "All">("All");
   const [toast, setToast] = useState<string | null>(null);
@@ -69,9 +51,8 @@ function DocumentsContent() {
   const focusRef = useRef<HTMLElement | null>(null);
 
   async function loadDocuments() {
-    const response = await fetch("/api/documents");
-    const data = await response.json();
-    setDocuments(data.documents ?? []);
+    const data = await fetchCorpus();
+    setDocuments(data.documents);
     setLoading(false);
   }
 
@@ -120,30 +101,44 @@ function DocumentsContent() {
         return;
       }
 
+      if (!saveSessionDocument(data.document)) {
+        setToast(
+          "Upload parsed but could not be saved — this browser's storage is full. Clear session uploads and try again."
+        );
+        return;
+      }
+
       await loadDocuments();
       setToast(
-        `Indexed "${data.document.title}" — ${data.document.equipmentTags.length} equipment tags extracted. Query it in Copilot now.`
+        `Indexed "${data.document.title}" — ${data.document.equipmentTags.length} equipment tags extracted. It is queryable in Copilot and the knowledge graph now.`
       );
     } catch {
       setToast("Upload failed. Please try again.");
     } finally {
       setUploading(false);
       event.target.value = "";
-      setTimeout(() => setToast(null), 5000);
+      setTimeout(() => setToast(null), 6000);
     }
+  }
+
+  function handleClearUploads() {
+    clearSessionDocuments();
+    loadDocuments();
+    setToast("Cleared browser-session uploads. Seed corpus is unchanged.");
+    setTimeout(() => setToast(null), 4000);
   }
 
   return (
     <div>
       <PageHeader
-        title="Universal Document Ingestion"
-        description="Upload .txt or .md plant records — OpsMind chunks, tags equipment entities, links regulations, and makes content queryable in Copilot immediately."
+        title="Document Ingestion"
+        description="Upload .txt, .md, .csv, or .json plant records. OpsMind extracts equipment tags and regulations, then makes the file queryable in Copilot and visible on the knowledge graph. Uploads persist in this browser session so they work on serverless hosts."
       />
 
       {toast && (
         <div
           className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
-            toast.includes("failed") || toast.includes("Failed")
+            toast.toLowerCase().includes("fail")
               ? "border-red-500/30 bg-red-500/10 text-red-200"
               : "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
           }`}
@@ -155,10 +150,10 @@ function DocumentsContent() {
       <div className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
         <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm text-cyan-200 hover:bg-cyan-500/20">
           <Upload className="h-4 w-4" />
-          {uploading ? "Indexing..." : "Upload .txt / .md"}
+          {uploading ? "Indexing..." : "Upload .txt / .md / .csv / .json"}
           <input
             type="file"
-            accept=".txt,.md,text/plain,text/markdown"
+            accept=".txt,.md,.csv,.json,text/plain,text/markdown,text/csv,application/json"
             className="hidden"
             disabled={uploading}
             onChange={handleUpload}
@@ -167,8 +162,17 @@ function DocumentsContent() {
         <span className="text-xs text-slate-500">
           {documents.length} documents in knowledge base
           {documents.some((doc) => doc.id.startsWith("upload-")) &&
-            " · includes uploaded records"}
+            " · includes session uploads"}
         </span>
+        {documents.some((doc) => doc.id.startsWith("upload-")) && (
+          <button
+            type="button"
+            onClick={handleClearUploads}
+            className="text-xs text-slate-400 underline hover:text-white"
+          >
+            Clear session uploads
+          </button>
+        )}
       </div>
 
       <div className="mb-6 space-y-4 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
@@ -208,6 +212,7 @@ function DocumentsContent() {
             return (
               <article
                 key={doc.id}
+                id={doc.id}
                 ref={isFocused ? focusRef : undefined}
                 className={`rounded-xl border bg-slate-900/60 p-5 ${
                   isFocused
@@ -220,7 +225,7 @@ function DocumentsContent() {
                     <h2 className="text-lg font-medium text-white">{doc.title}</h2>
                     <p className="mt-1 text-xs uppercase tracking-wide text-cyan-400">
                       {doc.type}
-                      {doc.id.startsWith("upload-") && " · Uploaded"}
+                      {doc.id.startsWith("upload-") && " · Session upload"}
                     </p>
                   </div>
                   <p className="text-xs text-slate-500">Updated {doc.lastUpdated}</p>
@@ -243,7 +248,7 @@ function DocumentsContent() {
                   </p>
                 )}
 
-                <p className="mt-4 text-sm leading-7 text-slate-400">
+                <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-400">
                   {isFocused && highlight
                     ? highlightText(doc.content, highlight)
                     : doc.content}
