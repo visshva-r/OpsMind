@@ -6,14 +6,9 @@ Originally built for ET AI Hackathon 2026 (PS-8). This repository is the product
 
 ## Live demo
 
-Production URL: **not published yet** (Vercel CLI is not logged in on this machine).
+Production URL: **https://opsmind-eight.vercel.app**
 
-```bash
-npx vercel login
-npx vercel --prod
-```
-
-Paste the printed `https://*.vercel.app` URL here after the first production deploy. Local run works now.
+The public demo is deployed on Vercel. Local run works as well.
 
 ## Local run
 
